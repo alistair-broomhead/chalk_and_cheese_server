@@ -22,9 +22,13 @@
 """
 import json
 import bottle
+
+import gevent
+
 from functools import wraps
 from models import Mouse, Lobby, TableStates
 LOBBY = Lobby()
+PREV_STATUS = {}
 
 
 def body():
@@ -55,17 +59,39 @@ def with_user_and_table(fn):
     return inner
 
 
-def add_endpoints(app):
+def until_new(fn):
+    cache = {}
+    import time
+    minute_since = lambda start: time.time() > start + 60
 
-    @app.post('/table')
+    def inner(*args, **kwargs):
+        start_time = time.time()
+        uid = kwargs['user'].uid
+        ret = json.dumps(fn(*args, **kwargs))
+        while uid in cache and cache[uid] == ret:
+            gevent.sleep(0.2)
+            ret = json.dumps(fn(*args, **kwargs))
+            if minute_since(start_time):
+                break
+        cache[uid] = ret
+        bottle.response.set_header('Content-Type', 'application/json')
+        bottle.response.set_header('Content-Length', len(ret))
+        return ret
+    return inner
+
+
+def add_endpoints(route):
+    
+    @route('/table', method='POST')
     @with_auth
     def new_game(user):
         """ Vote to start a new game. (there must not be one in progress) """
         LOBBY.add_vote(user)
-        return get_mice()
+        return json.dumps(user not in LOBBY.mice)
 
-    @app.get('/mouse')
+    @route('/mouse', method='GET')
     @with_auth
+    @until_new
     def get_mice(user):
         """
         What does this user know about their current room, whether this is the
@@ -76,7 +102,7 @@ def add_endpoints(app):
         else:
             return LOBBY.tables[user].display_for(user)
 
-    @app.put('/mouse')
+    @route('/mouse', method='PUT')
     @with_auth
     def change_mouse(user):
         """
@@ -90,7 +116,7 @@ def add_endpoints(app):
             user.password = _body['password']
         return user.to_dict(password=True)
 
-    @app.post('/mouse')
+    @route('/mouse', method='POST')
     def create_mouse():
         """
         Join the session, get the auth data used for other requests. (must not
@@ -100,47 +126,47 @@ def add_endpoints(app):
         LOBBY.mice.add(mouse)
         return mouse.to_dict(password=True)
 
-    @app.get('/mouse/hand')
+    @route('/mouse/hand', method='GET')
     @with_user_and_table
     def get_hand(user, table):
         """ Get the cards currently in your hand. (Game must be in progress) """
         return json.dumps(table.hands[user])
 
-    @app.get('/mouse/chalk')
+    @route('/mouse/chalk', method='GET')
     @with_user_and_table
     def get_chalk(user, table):
         """ Get the user's chalk image. (Game must be in progress) """
         assert table
         return 'chalk'  # TODO - use image
 
-    @app.get('/mouse/cheese')
+    @route('/mouse/cheese', method='GET')
     @with_user_and_table
     def get_cheese(user, table):
         """ Get the user's cheese image. (Game must be in progress) """
         assert table
         return 'cheese'  # TODO - use image
 
-    @app.post('/token')
+    @route('/token', method='POST')
     @with_user_and_table
     def place_token(user, table):
         """ Place either a chalk or a cheese.(must be your turn) """
         _body = body()
         return table.place(user=user, card=_body)
 
-    @app.get('/token/<uid>')
+    @route('/token/<uid>', method='GET')
     @with_user_and_table
     def draw_token(user, table, uid):
         """ Draw a token from the top of the given pile. (must be raiding) """
         assert table.state is TableStates.raid
         return table.take(user=user, mouse=Mouse.connected[int(uid)])
 
-    @app.post('/bid')
+    @route('/bid', method='POST')
     @with_user_and_table
     def post_bid(user, table):
         """ Place a bid (must be your turn) """
         return table.bid(user=user, num=body())
 
-    @app.delete('/bid')
+    @route('/bid', method='DELETE')
     @with_user_and_table
     def withdraw_bid(user, table):
         """ Place a bid (must be your turn) """
@@ -148,5 +174,5 @@ def add_endpoints(app):
 
 
 def run(app=bottle):
-    add_endpoints(app)
+    add_endpoints(app.route)
     app.run()

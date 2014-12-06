@@ -171,13 +171,13 @@ class Table(object):
         assert user in self.bids
         assert self.bid_current < num <= self.bid_max
 
-        self.bids[user] = num
+        self.bid_current = self.bids[user] = num
 
-        if num < self.bid_max:
+        if num == self.bid_max:
             # If it's impossible to bid higher, you've won the bid
-            self.bid_current = num
-
-        self._rotate_bids()
+            self.state = TableStates.raid
+        else:
+            self._rotate_bids()
         return self.display_for(user)
 
     @in_turn
@@ -210,13 +210,17 @@ class Table(object):
             if not self.hands[user]:
                 self.mice.remove(user)
             self.state = TableStates.placement
-        elif len(self.raided) == self.bid_current:
+            return display
+        elif len(self.raided) >= self.bid_current:
             self.points[user] += 1
             if self.points[user] == 2:
-                self._return_stacks()
                 self.state = TableStates.finished
+                return display
+            else:
+                self._return_stacks()
+                self.state = TableStates.placement
 
-        return display
+        return self.display_for(user)
 
     def display_for(self, user):
         ret = {
@@ -229,6 +233,7 @@ class Table(object):
         }
         for mouse in self.mice:
             d = ret['mice'][mouse.uid]
+            d['points'] = self.points[mouse]
             if mouse is user:
                 d['hand'] = self.hands[mouse]
                 d['stack'] = self.stacks[mouse]

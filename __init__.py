@@ -17,5 +17,7 @@ The first mouse to make two successful raids is crowned the winner.
 
 This is the  back-end for the game, and is a rest service.
 """
-from server import run
-run()
+from server import run, add_endpoints
+
+if __name__ == "__main__":
+    run()
