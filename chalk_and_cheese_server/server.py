@@ -37,6 +37,7 @@ def body():
 
 
 def _auth_user():
+    bottle.response.headers['Access-Control-Allow-Origin'] = '*'
     user_id, password = bottle.request.auth
     user = Mouse.connected[json.loads(user_id)]
     assert user.password == password
@@ -81,7 +82,7 @@ def until_new(fn):
     return inner
 
 
-def add_endpoints(route):
+def add_endpoints(route, app=bottle):
     
     @route('/table', method='POST')
     @with_auth
@@ -173,11 +174,18 @@ def add_endpoints(route):
         """ Place a bid (must be your turn) """
         return table.stand(user=user)
 
+    @bottle.error(405)
+    def method_not_allowed(res):
+        if bottle.request.method == 'OPTIONS':
+            new_res = bottle.HTTPResponse()
+            new_res.set_header('Access-Control-Allow-Origin', '*')
+            return new_res
+        res.headers['Allow'] += ', OPTIONS'
+        return bottle.request.app.default_error_handler(res)
 
-@bottle.hook('before_request')
-def enable_cors():
-    bottle.response.headers['Access-Control-Allow-Origin'] = '*'
-
+    @app.hook('after_request')
+    def enable_cors():
+        bottle.response.headers['Access-Control-Allow-Origin'] = '*'
 
 def run(app=bottle):
     add_endpoints(app.route)
