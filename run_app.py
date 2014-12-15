@@ -14,3 +14,7 @@ def run():
 
     bottle.run(server='gevent',
                host=host, port=port, reloader=True)
+
+
+if __name__ == "__main__":
+    run()
