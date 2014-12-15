@@ -174,7 +174,7 @@ def add_endpoints(route):
         return table.stand(user=user)
 
 
-@bottle.hook('after_request')
+@bottle.hook('before_request')
 def enable_cors():
     bottle.response.headers['Access-Control-Allow-Origin'] = '*'
 
