@@ -174,18 +174,28 @@ def add_endpoints(route, app=bottle):
         """ Place a bid (must be your turn) """
         return table.stand(user=user)
 
+    def add_cross_origin_headers(response,
+                                 origin=True, methods=True, auth=True):
+        if origin:
+            response.set_header('Access-Control-Allow-Origin', '*')
+        if methods:
+            response.set_header('Access-Control-Allow-Methods',
+                                'GET, POST, PUT, DELETE')
+        if auth:
+            response.set_header('Access-Control-Allow-Headers', 'Authorization')
+        return response
+
     @bottle.error(405)
     def method_not_allowed(res):
         if bottle.request.method == 'OPTIONS':
-            new_res = bottle.HTTPResponse()
-            new_res.set_header('Access-Control-Allow-Origin', '*')
-            return new_res
+            return add_cross_origin_headers(bottle.HTTPResponse())
         res.headers['Allow'] += ', OPTIONS'
         return bottle.request.app.default_error_handler(res)
 
     @app.hook('after_request')
     def enable_cors():
-        bottle.response.headers['Access-Control-Allow-Origin'] = '*'
+        add_cross_origin_headers(bottle.response, methods=False)
+
 
 def run(app=bottle):
     add_endpoints(app.route)
