@@ -21,12 +21,13 @@
 /bid            DELETE  Withdraw from bidding (must be your turn)
 """
 import json
-import bottle
+from functools import wraps
 
+import bottle
 import gevent
 
-from functools import wraps
-from models import Mouse, Lobby, TableStates
+from .models import Mouse, Lobby, TableStates
+
 LOBBY = Lobby()
 PREV_STATUS = {}
 
