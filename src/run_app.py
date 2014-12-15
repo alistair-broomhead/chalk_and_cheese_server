@@ -1,3 +1,6 @@
+import sys
+if 'threading' in sys.modules:
+    del sys.modules['threading']
 from gevent.monkey import patch_all
 patch_all()
 
