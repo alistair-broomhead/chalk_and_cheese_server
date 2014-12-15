@@ -1,6 +1,7 @@
-from chalk_and_cheese_server import add_endpoints
 from gevent.monkey import patch_all
 patch_all()
+
+from chalk_and_cheese_server import add_endpoints
 import bottle
 import os
 
