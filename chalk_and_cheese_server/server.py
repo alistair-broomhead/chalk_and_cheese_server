@@ -21,155 +21,193 @@
 /bid            DELETE  Withdraw from bidding (must be your turn)
 """
 import json
-from functools import wraps
 
 import bottle
-import gevent
+from gevent.pywsgi import WSGIServer
 
-from .models import Mouse, Lobby, TableStates
+from .models.mouse import Mouse
+from .models.lobby import Lobby
+from .models.table import TableStates
 
-LOBBY = Lobby()
-PREV_STATUS = {}
-
-
-def body():
-    return json.load(bottle.request.body)
+APP = bottle.Bottle()
 
 
-def _auth_user():
-    bottle.response.headers['Access-Control-Allow-Origin'] = '*'
-    user_id, password = bottle.request.auth
-    user = Mouse.connected[json.loads(user_id)]
-    assert user.password == password
-    return user
+def add_endpoints(app=APP):
 
+    from .utils import (body,
+                        with_auth,
+                        with_user_and_table,
+                        with_update,
+                        to_json)
 
-def with_auth(fn):
-    @wraps(fn)
-    def inner(*args, **kwargs):
-        kwargs['user'] = _auth_user()
-        return fn(*args, **kwargs)
-    return inner
+    lobby = Lobby()
 
+    with_user_and_table = with_user_and_table(lobby)
+    with_update = with_update(lobby)
 
-def with_user_and_table(fn):
-    @wraps(fn)
-    def inner(*args, **kwargs):
-        kwargs['user'] = user = _auth_user()
-        kwargs['table'] = LOBBY.tables[user]
-        return fn(*args, **kwargs)
-    return inner
+    # Player Endpoints
 
-
-def until_new(fn):
-    cache = {}
-    import time
-    minute_since = lambda start: time.time() > start + 60
-
-    def inner(*args, **kwargs):
-        start_time = time.time()
-        uid = kwargs['user'].uid
-        ret = json.dumps(fn(*args, **kwargs))
-        while uid in cache and cache[uid] == ret:
-            gevent.sleep(0.2)
-            ret = json.dumps(fn(*args, **kwargs))
-            if minute_since(start_time):
-                break
-        cache[uid] = ret
-        bottle.response.set_header('Content-Type', 'application/json')
-        bottle.response.set_header('Content-Length', len(ret))
-        return ret
-    return inner
-
-
-def add_endpoints(route, app=bottle):
-    
-    @route('/table', method='POST')
+    @app.route('/player', method='GET')
     @with_auth
-    def new_game(user):
-        """ Vote to start a new game. (there must not be one in progress) """
-        LOBBY.add_vote(user)
-        return json.dumps(user not in LOBBY.mice)
-
-    @route('/mouse', method='GET')
-    @with_auth
-    @until_new
     def get_mice(user):
         """
-        What does this user know about their current room, whether this is the
-        lobby or a table.
+        Check current user info.
         """
-        if user in LOBBY.mice:
-            return LOBBY.display_for(user)
-        else:
-            return LOBBY.tables[user].display_for(user)
+        return user.to_dict(player=True)
 
-    @route('/mouse', method='PUT')
+    @app.route('/player', method='PUT')
     @with_auth
     def change_mouse(user):
         """
         Change user data such as name or password. (must have a session to edit)
         """
-        _body = body()
-        assert user.uid == _body['uid']
-        if 'name' in _body:
-            user.name = _body['name']
-        if 'password' in _body:
-            user.password = _body['password']
-        return user.to_dict(password=True)
+        if user.update(**body()):
+            lobby.update()
+            for table in user.games:
+                table.update()
+        return user.to_dict(player=True)
 
-    @route('/mouse', method='POST')
+    @app.route('/player', method='POST')
     def create_mouse():
         """
         Join the session, get the auth data used for other requests. (must not
         have a current session)
         """
-        mouse = Mouse.new()
-        LOBBY.mice.add(mouse)
-        return mouse.to_dict(password=True)
+        user = Mouse.new()
+        lobby.join(user)
+        return user.to_dict(player=True)
 
-    @route('/mouse/hand', method='GET')
+    @app.route('/player/updated', method='GET')
+    @with_auth
+    @to_json
+    def get_updated(user):
+        """
+        Is there anything new for the player to know?
+        """
+        #TODO - make this "Has the player model changed since last update"
+        ret = {
+            'change': user.wait_for_update()
+        }
+        if ret['change']:
+            ret['data'] = user.to_dict(player=True)
+
+        return ret
+    
+    @app.route('/table/<table_id>', method='GET')
+    @with_auth
+    def get_game(user, table_id):
+        """ Get progress of current game """
+        return lobby.games[int(table_id)].display_for(user)
+
+    @app.route('/table/<table_id>/updated', method='GET')
+    @with_auth
+    @to_json
+    def get_updated(user, table_id):
+        """
+        Is there anything new for the player to know?
+        """
+        table = lobby.games[int(table_id)]
+        ret = {
+            'change': json.dumps(table.wait_for_update(user))
+        }
+        if ret['change']:
+            ret['data'] = table.display_for(user)
+        return ret
+
+    @app.route('/table', method='POST')
+    @with_auth
+    def new_game(user):
+        """ Vote to start a new game. (there must not be one in progress) """
+        lobby.add_vote(user)
+        return json.dumps(user not in lobby.mice)
+
+    @app.route('/lobby', method='GET')
+    @with_auth
+    def get_mice(user):
+        """
+        What does this user know about their current room, whether this is the
+        lobby or a table.
+        """
+        return lobby.display_for(user)
+
+    @app.route('/lobby/ready', method='GET')
+    @with_auth
+    def get_ready(user):
+        """ Is the user ready to play? """
+        #TODO - change when I implement new lobby system
+        return user in lobby.start_votes
+
+    @app.route('/lobby/ready', method='POST')
+    @with_auth
+    def set_ready(user):
+        """ Set whether the user is ready to play """
+        #TODO - change when I implement new lobby system
+        body = bottle.request.body.read()
+        if body and json.loads(body):
+            lobby.add_vote(user)
+        else:
+            lobby.remove_vote(user)
+
+    @app.route('/lobby/updated', method='GET')
+    @with_auth
+    @to_json
+    def get_updated(user):
+        """
+        Is there anything new for the player to know?
+        """
+        #TODO - make this "Has the player model changed since last update"
+        ret = {
+            'change': lobby.wait_for_update(user)
+        }
+        if ret['change']:
+            ret['data'] = lobby.display_for(user)
+        return ret
+
+    @app.route('/mouse/hand', method='GET')
     @with_user_and_table
     def get_hand(user, table):
         """ Get the cards currently in your hand. (Game must be in progress) """
         return json.dumps(table.hands[user])
 
-    @route('/mouse/chalk', method='GET')
+    @app.route('/mouse/chalk', method='GET')
     @with_user_and_table
     def get_chalk(user, table):
         """ Get the user's chalk image. (Game must be in progress) """
         assert table
         return 'chalk'  # TODO - use image
 
-    @route('/mouse/cheese', method='GET')
+    @app.route('/mouse/cheese', method='GET')
     @with_user_and_table
     def get_cheese(user, table):
         """ Get the user's cheese image. (Game must be in progress) """
         assert table
         return 'cheese'  # TODO - use image
 
-    @route('/token', method='POST')
+    @app.route('/token', method='POST')
     @with_user_and_table
+    @with_update
     def place_token(user, table):
         """ Place either a chalk or a cheese.(must be your turn) """
-        _body = body()
-        return table.place(user=user, card=_body)
+        return table.place(user=user, card=body())
 
-    @route('/token/<uid>', method='GET')
+    @app.route('/token/<uid>', method='GET')
     @with_user_and_table
+    @with_update
     def draw_token(user, table, uid):
         """ Draw a token from the top of the given pile. (must be raiding) """
         assert table.state is TableStates.raid
         return table.take(user=user, mouse=Mouse.connected[int(uid)])
 
-    @route('/bid', method='POST')
+    @app.route('/bid', method='POST')
     @with_user_and_table
+    @with_update
     def post_bid(user, table):
         """ Place a bid (must be your turn) """
         return table.bid(user=user, num=body())
 
-    @route('/bid', method='DELETE')
+    @app.route('/bid', method='DELETE')
     @with_user_and_table
+    @with_update
     def withdraw_bid(user, table):
         """ Place a bid (must be your turn) """
         return table.stand(user=user)
@@ -182,10 +220,15 @@ def add_endpoints(route, app=bottle):
             response.set_header('Access-Control-Allow-Methods',
                                 'GET, POST, PUT, DELETE')
         if auth:
-            response.set_header('Access-Control-Allow-Headers', 'Authorization')
+            response.set_header('Access-Control-Allow-Headers',
+                                'Authorization, Origin, '
+                                'X-Requested-With, '
+                                'Content-Type, '
+                                'Accept')
         return response
 
-    @bottle.error(405)
+    @app.error(405)
+    @app.error(500)
     def method_not_allowed(res):
         if bottle.request.method == 'OPTIONS':
             return add_cross_origin_headers(bottle.HTTPResponse())

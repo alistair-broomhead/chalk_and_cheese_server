@@ -7,13 +7,14 @@ import os
 
 
 def run():
-    add_endpoints(bottle.route)
+    app = bottle.Bottle()
+    add_endpoints(app)
 
     port = int(os.environ.get("PORT", 5000))
     host = os.environ.get("HOST", '0.0.0.0')
 
-    bottle.run(server='gevent',
-               host=host, port=port, reloader=True)
+    app.run(server='gevent',
+            host=host, port=port)
 
 
 if __name__ == "__main__":

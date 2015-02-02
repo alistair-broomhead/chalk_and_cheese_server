@@ -1,105 +1,9 @@
 from collections import deque
 import random
-import string
+import time
+import gevent
 from functools import wraps
-
-
-class Event(object):
-
-    audit = []
-
-    def __init__(self, event_type, data):
-        self.event_type = event_type
-        self.data = data
-        self.audit.append(self)
-
-    def __str__(self):
-        return 'Event({0}, {1})'.format(
-            self.event_type, self.data
-        )
-
-
-class Mouse(object):
-    connected = {}
-
-    def __init__(self, uid, name, password):
-        self.uid = uid
-        self.name = name
-        self.password = password
-        self.connected[uid] = self
-
-    @classmethod
-    def random_password(cls):
-        return ''.join(random.choice(string.printable)
-                       for _ in xrange(random.randint(8, 16)))
-    @classmethod
-    def new(cls):
-        # Get the next user id
-        uid = 0 if not cls.connected else max(cls.connected) + 1
-        # Generate a random password
-        password = cls.random_password()
-        password = "password"
-        # Create the user with these credentials
-        mouse = cls(uid, "mouse_{0}".format(uid), password)
-        Event("new mouse", mouse)
-        return mouse
-
-    def to_dict(self, uid=True, name=True, password=False):
-        ret = {}
-        if uid:
-            ret['uid'] = self.uid
-        if name:
-            ret['name'] = self.name
-        if password:
-            ret['password'] = self.password
-        return ret
-
-
-class Lobby(object):
-    tables = {}
-
-    def __init__(self):
-        self.mice = set()
-        self.start_votes = set()
-
-    def display_for(self, user):
-        ret = {
-            mouse.uid: mouse.to_dict(password=(mouse is user))
-            for mouse in self.mice
-        }
-        ret['state'] = 'lobby'
-        for mouse in self.mice:
-            ret[mouse.uid]['ready'] = mouse in self.start_votes
-
-        return ret
-
-    def join(self, mouse):
-        self.mice.add(mouse)
-        Event("Mouse joined", {'mouse': mouse, 'lobby': self})
-
-    def leave(self, mouse):
-        self.mice.remove(mouse)
-        Event("Mouse left", {'mouse': mouse, 'lobby': self})
-
-    def add_vote(self, mouse):
-        assert mouse not in self.tables
-        if mouse in self.mice:
-            self.start_votes.add(mouse)
-            votes = len(self.start_votes)
-            mice = len(self.mice)
-            if votes > mice/2:
-                self.start()
-
-    def remove_vote(self, mouse):
-        if mouse in self.start_votes:
-            self.start_votes.remove(mouse)
-
-    def start(self):
-        mice, self.mice = self.mice, set()
-
-        table = Table(mice)
-        for mouse in mice:
-            self.tables[mouse] = table
+from .event import Event
 
 
 def in_turn(action):
@@ -113,7 +17,26 @@ def in_turn(action):
 
 
 class Table(object):
-    connected = []
+    next_id = 0
+
+    def update(self):
+        for mouse in self.mice:
+            mouse.updated = True
+            self.updates[mouse] = True
+
+    def wait_for_update(self,
+                        mouse,
+                        time_out_in_seconds=10,
+                        step_time_in_seconds=0.2):
+        if not mouse in self.mice:
+            return False
+        end_time = time.time() + time_out_in_seconds
+        while time.time() < end_time:
+            if self.updates[mouse]:
+                self.updates[mouse] = False
+                return True
+            gevent.sleep(step_time_in_seconds)
+        return False
 
     @property
     def active_player(self):
@@ -224,8 +147,9 @@ class Table(object):
 
     def display_for(self, user):
         ret = {
+            'uid': self.uid,
             'mice': {
-                mouse.uid: mouse.to_dict(password=(mouse is user))
+                mouse.uid: mouse.to_dict(player=(mouse is user))
                 for mouse in self.mice
             },
             'state': self.state.name,
@@ -250,8 +174,9 @@ class Table(object):
         return ret
 
     def __init__(self, mice):
-        self.uid = 0 if not self.connected else max(self.connected) + 1
+        self.uid, self.__class__.next_id = self.next_id, self.next_id + 1
         self.mice = deque(sorted(list(mice)))
+        self.updates = {mouse: False for mouse in self.mice}
         self.hands = {mouse: ['chalk', 'cheese', 'cheese', 'cheese']
                       for mouse in mice}
         self.stacks = {mouse: [] for mouse in mice}
