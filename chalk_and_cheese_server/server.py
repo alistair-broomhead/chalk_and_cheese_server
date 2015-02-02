@@ -108,7 +108,7 @@ def add_endpoints(app=APP):
         """
         table = lobby.games[int(table_id)]
         ret = {
-            'change': json.dumps(table.wait_for_update(user))
+            'change': table.wait_for_update(user)
         }
         if ret['change']:
             ret['data'] = table.display_for(user)
