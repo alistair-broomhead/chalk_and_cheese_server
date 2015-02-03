@@ -32,7 +32,8 @@ def with_update(lobby):
         @wraps(fn)
         def inner(*args, **kwargs):
             ret = fn(*args, **kwargs)
-            kwargs['user'].update()
+            mouse = kwargs['user']
+            mouse.updated = True
             lobby.update()
             return ret
         return inner

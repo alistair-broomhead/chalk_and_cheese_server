@@ -114,12 +114,46 @@ def add_endpoints(app=APP):
             ret['data'] = table.display_for(user)
         return ret
 
+    @app.route('/table/<table_id>/token', method='POST')
+    @with_auth
+    @with_update
+    def place_token(user, table_id):
+        """ Place either a chalk or a cheese.(must be your turn) """
+        table = lobby.games[int(table_id)]
+        assert table.state is TableStates.placement
+        return table.place(user=user, card=bottle.request.body.read())
+
+    @app.route('/table/<table_id>/token/<uid>', method='GET')
+    @with_auth
+    @with_update
+    def draw_token(user, table_id, uid):
+        """ Draw a token from the top of the given pile. (must be raiding) """
+        table = lobby.games[int(table_id)]
+        assert table.state is TableStates.raid
+        return table.take(user=user, mouse=Mouse.connected[int(uid)])
+
     @app.route('/table', method='POST')
     @with_auth
     def new_game(user):
         """ Vote to start a new game. (there must not be one in progress) """
         lobby.add_vote(user)
         return json.dumps(user not in lobby.mice)
+
+    @app.route('/table/<table_id>/bid', method='POST')
+    @with_auth
+    @with_update
+    def post_bid(user, table_id):
+        """ Place a bid (must be your turn) """
+        table = lobby.games[int(table_id)]
+        return table.bid(user=user, num=body())
+
+    @app.route('/table/<table_id>/bid', method='DELETE')
+    @with_auth
+    @with_update
+    def withdraw_bid(user, table_id):
+        """ Place a bid (must be your turn) """
+        table = lobby.games[int(table_id)]
+        return table.stand(user=user)
 
     @app.route('/lobby', method='GET')
     @with_auth
@@ -182,35 +216,6 @@ def add_endpoints(app=APP):
         """ Get the user's cheese image. (Game must be in progress) """
         assert table
         return 'cheese'  # TODO - use image
-
-    @app.route('/token', method='POST')
-    @with_user_and_table
-    @with_update
-    def place_token(user, table):
-        """ Place either a chalk or a cheese.(must be your turn) """
-        return table.place(user=user, card=body())
-
-    @app.route('/token/<uid>', method='GET')
-    @with_user_and_table
-    @with_update
-    def draw_token(user, table, uid):
-        """ Draw a token from the top of the given pile. (must be raiding) """
-        assert table.state is TableStates.raid
-        return table.take(user=user, mouse=Mouse.connected[int(uid)])
-
-    @app.route('/bid', method='POST')
-    @with_user_and_table
-    @with_update
-    def post_bid(user, table):
-        """ Place a bid (must be your turn) """
-        return table.bid(user=user, num=body())
-
-    @app.route('/bid', method='DELETE')
-    @with_user_and_table
-    @with_update
-    def withdraw_bid(user, table):
-        """ Place a bid (must be your turn) """
-        return table.stand(user=user)
 
     def add_cross_origin_headers(response,
                                  origin=True, methods=True, auth=True):

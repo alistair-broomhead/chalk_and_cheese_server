@@ -75,6 +75,7 @@ class Table(object):
         self.hands[user].remove(card)
         self.stacks[user].append(card)
         self.mice.rotate(-1)
+        self.update()
         return self.display_for(user)
 
     @in_turn
@@ -87,7 +88,7 @@ class Table(object):
             self.bid_current = 0
             self.bid_max = sum(len(stack) for stack in self.stacks.values())
             # Are we allowed to enter bidding yet?
-            assert self.bid_max >= (2*len(self.mice)) - 1
+            assert self.bid_max >= len(self.mice)
             self.bids = {mouse: 0 for mouse in self.mice}
             self.state = TableStates.bidding
         assert self.state is TableStates.bidding
@@ -101,6 +102,7 @@ class Table(object):
             self.state = TableStates.raid
         else:
             self._rotate_bids()
+        self.update()
         return self.display_for(user)
 
     @in_turn
@@ -112,6 +114,7 @@ class Table(object):
         assert user in b
         del b[user]
         self._rotate_bids()
+        self.update()
         return self.display_for(user)
 
     @in_turn
@@ -143,6 +146,7 @@ class Table(object):
                 self._return_stacks()
                 self.state = TableStates.placement
 
+        self.update()
         return self.display_for(user)
 
     def display_for(self, user):
@@ -187,6 +191,7 @@ class Table(object):
         self.bids = {}
         self.bid_max = self.bid_current = None
         self.raided = []
+        self.update()
         Event("New game", self)
 
 
