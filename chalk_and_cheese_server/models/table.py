@@ -99,7 +99,7 @@ class Table(object):
 
         if num == self.bid_max:
             # If it's impossible to bid higher, you've won the bid
-            self.state = TableStates.raid
+            self._to_raid_state(user)
         else:
             self._rotate_bids()
         self.update()
