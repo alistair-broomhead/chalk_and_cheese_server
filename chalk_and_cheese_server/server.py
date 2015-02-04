@@ -47,6 +47,10 @@ def add_endpoints(app=APP):
 
     # Player Endpoints
 
+    @app.route('/', method='GET')
+    def root():
+        return "Hi"
+
     @app.route('/player', method='GET')
     @with_auth
     def get_mice(user):
