@@ -23,7 +23,6 @@
 import json
 
 import bottle
-from gevent.pywsgi import WSGIServer
 
 from .models.mouse import Mouse
 from .models.lobby import Lobby
