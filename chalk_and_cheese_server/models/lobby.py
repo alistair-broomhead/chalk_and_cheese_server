@@ -1,68 +1,41 @@
-import time
-import gevent
+from .base import ModelBase
 from .table import Table
-from .event import Event
 
 
-class Lobby(object):
-    tables = {}
+class Lobby(ModelBase):
     games = {}
 
     def __init__(self):
+        super(Lobby, self).__init__()
+        self._connected = {}
         self.mice = {}
         self.start_votes = set()
 
-    def wait_for_update(self,
-                        mouse,
-                        time_out_in_seconds=10,
-                        step_time_in_seconds=0.2):
-        if not mouse in self.mice:
-            return False
-        end_time = time.time() + time_out_in_seconds
-        while time.time() < end_time:
-            if self.mice[mouse]:
-                self.mice[mouse] = False
-                return True
-            gevent.sleep(step_time_in_seconds)
-        return False
-
-    def update(self):
-        for mouse in self.mice:
-            mouse.updated = True
-            self.mice[mouse] = True
-
-    def display_for(self, user):
-        ret = {
-            mouse.uid: mouse.to_dict(player=(mouse is user))
-            for mouse in self.mice
-        }
-        for mouse in self.mice:
-            ret[mouse.uid]['ready'] = mouse in self.start_votes
-
-        return ret
+    @property
+    def connected(self):
+        return set(mouse for mouse, conn in self._connected.items() if conn)
 
     def join(self, mouse):
-        self.mice[mouse] = True
-        Event("Mouse joined", {'mouse': mouse, 'lobby': self})
+        self._connected[mouse] = True
+        self.mice[mouse.uid] = mouse
         self.update()
 
     def leave(self, mouse):
-        del self.mice[mouse]
-        Event("Mouse left", {'mouse': mouse, 'lobby': self})
+        self._connected[mouse] = False
         self.update()
 
     def add_vote(self, mouse):
-        assert mouse not in self.tables
-        if mouse in self.mice:
+        if mouse in self._connected:
             self.start_votes.add(mouse)
+            self.update()
+
             if len(self.start_votes) > 1:
                 self.start()
-        self.update()
 
     def remove_vote(self, mouse):
         if mouse in self.start_votes:
             self.start_votes.remove(mouse)
-        self.update()
+            self.update()
 
     def start(self):
 
@@ -71,5 +44,9 @@ class Lobby(object):
         table = Table(start_votes)
         self.games[table.uid] = table
         for mouse in start_votes:
-            mouse.games.add(table.uid)
-            self.tables[mouse.uid] = table
+            mouse.tables.add(table.uid)
+
+    def update(self):
+        super(Lobby, self).update()
+        for mouse in self._connected:
+            mouse.update()

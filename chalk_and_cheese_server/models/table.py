@@ -3,7 +3,7 @@ import random
 import time
 import gevent
 from functools import wraps
-from .event import Event
+from .base import ModelBase
 
 
 def in_turn(action):
@@ -16,13 +16,8 @@ def in_turn(action):
     return inner
 
 
-class Table(object):
+class Table(ModelBase):
     next_id = 0
-
-    def update(self):
-        for mouse in self.mice:
-            mouse.updated = True
-            self.updates[mouse] = True
 
     def wait_for_update(self,
                         mouse,
@@ -76,7 +71,6 @@ class Table(object):
         self.stacks[user].append(card)
         self.mice.rotate(-1)
         self.update()
-        return self.display_for(user)
 
     @in_turn
     def bid(self, user, num):
@@ -103,7 +97,6 @@ class Table(object):
         else:
             self._rotate_bids()
         self.update()
-        return self.display_for(user)
 
     @in_turn
     def stand(self, user):
@@ -115,7 +108,6 @@ class Table(object):
         del b[user]
         self._rotate_bids()
         self.update()
-        return self.display_for(user)
 
     @in_turn
     def take(self, user, mouse):
@@ -127,8 +119,6 @@ class Table(object):
         self.hands[mouse].append(token)
         self.raided.append((mouse, token))
 
-        display = self.display_for(user)
-
         if token == 'chalk':
             self._return_stacks()
             discard = random.choice(self.hands[user])
@@ -136,50 +126,24 @@ class Table(object):
             if not self.hands[user]:
                 self.mice.remove(user)
             self.state = TableStates.placement
-            return display
         elif len(self.raided) >= self.bid_current:
             self.points[user] += 1
             if self.points[user] == 2:
                 self.state = TableStates.finished
-                return display
             else:
                 self._return_stacks()
                 self.state = TableStates.placement
 
         self.update()
-        return self.display_for(user)
-
-    def display_for(self, user):
-        ret = {
-            'uid': self.uid,
-            'mice': {
-                mouse.uid: mouse.to_dict(player=(mouse is user))
-                for mouse in self.mice
-            },
-            'state': self.state.name,
-            'turn': self.active_player.uid
-        }
-        for mouse in self.mice:
-            d = ret['mice'][mouse.uid]
-            d['points'] = self.points[mouse]
-            if mouse is user:
-                d['hand'] = self.hands[mouse]
-                d['stack'] = self.stacks[mouse]
-            else:
-                d['hand'] = len(self.hands[mouse])
-                d['stack'] = len(self.stacks[mouse])
-
-        if self.state is TableStates.bidding:
-            for mouse in self.bids:
-                ret['mice'][mouse.uid]['bid'] = self.bids[mouse]
-        elif self.state is TableStates.raid:
-            ret['mice'][self.active_player.uid]['bid'] = self.bid_current
-            ret['taken'] = [[m.uid, token] for m, token in self.raided]
-        return ret
 
     def __init__(self, mice):
+        super(Table, self).__init__()
         self.uid, self.__class__.next_id = self.next_id, self.next_id + 1
         self.mice = deque(sorted(list(mice)))
+
+        self.version = 0
+        self._seen = {}
+
         self.updates = {mouse: False for mouse in self.mice}
         self.hands = {mouse: ['chalk', 'cheese', 'cheese', 'cheese']
                       for mouse in mice}
@@ -192,7 +156,6 @@ class Table(object):
         self.bid_max = self.bid_current = None
         self.raided = []
         self.update()
-        Event("New game", self)
 
 
 class TableState(object):
