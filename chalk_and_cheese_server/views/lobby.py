@@ -3,6 +3,7 @@ from .base import ViewBase
 
 class LobbyView(ViewBase):
 
+    @property
     def show(self):
         return {
             mouse.uid: mouse in self.model.start_votes
