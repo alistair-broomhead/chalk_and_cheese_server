@@ -31,11 +31,12 @@ class Player(Router):
         if user_view is None:
             user = Mouse.new(name=user_dict.get('name', None),
                              password=user_dict.get('password', None))
+            self.lobby.join(user)
             user_view = self.views.players[user]
         else:
             user = user_view.model
+            self.lobby.join(user)
 
-        self.lobby.join(user)
         return user_view.show
 
     @_sub.delete()

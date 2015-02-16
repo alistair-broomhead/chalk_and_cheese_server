@@ -20,13 +20,14 @@ class PlayersView(object):
 
     def __getitem__(self, item):
         if item not in self.models:
-            self.models[item] = PlayerView(self.lobby.model.mice[item])
+            self.models[item] = PlayerView(self.lobby.model.mice[item.uid])
 
         return self.models[item]
 
 
 class PlayerView(ViewBase):
 
+    @property
     def show(self):
         return {
             'uid': self.model.uid,
