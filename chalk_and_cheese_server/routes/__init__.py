@@ -15,6 +15,6 @@ def add_routes(app, lobby_model, views):
         }
 
     Player(app, views, lobby_model).bind()
-    Mouse(app, views, lobby_model).bind()
+    Mouse(app, views).bind()
     Table(app, views).bind()
     Lobby(app, views).bind()

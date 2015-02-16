@@ -14,3 +14,15 @@ class ViewBase(object):
     @property
     def user(self):
         return utils.auth_user()
+
+    @property
+    def updated(self):
+        updated = {
+            'change': self.model.updated(self.user),
+            'version': self.model.version
+        }
+
+        if updated['change']:
+            updated['data'] = self.show
+
+        return updated

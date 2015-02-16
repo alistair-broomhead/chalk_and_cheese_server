@@ -4,7 +4,15 @@ import string
 from .base import ModelBase
 
 
+class MouseMeta(type):
+    connected = {}
+
+    def __getitem__(self, item):
+        return self.connected[int(item)]
+
+
 class Mouse(ModelBase):
+    __metaclass__ = MouseMeta
     connected = {}
 
     def __init__(self, uid, name, password, tables):

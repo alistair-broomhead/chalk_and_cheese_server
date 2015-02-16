@@ -1,5 +1,6 @@
 from .base import ViewBase
 from ..models.table import TableStates
+from .. import utils
 
 
 class TablesView(object):
@@ -11,6 +12,7 @@ class TablesView(object):
         self.models = {}
 
     def __getitem__(self, item):
+        item = int(item)
         if item not in self.models:
             self.models[item] = TableView(self.lobby.model.games[item])
 
@@ -59,6 +61,22 @@ class TableView(ViewBase):
         if model.state is TableStates.raid:
             ret['taken'] = [[m.uid, token] for m, token in model.raided]
         return ret
+
+    def place(self):
+        assert self.model.state is TableStates.placement
+        self.model.place(user=self.user, card=utils.body())
+
+    def draw(self, model):
+        assert self.model.state is TableStates.raid
+        self.model.take(user=self.user, model=model)
+
+    def place_bid(self):
+        assert self.model.state in (TableStates.placement, TableStates.bidding)
+        self.model.bid(user=self.user, num=utils.body())
+
+    def stand(self):
+        assert self.model.state is TableStates.bidding
+        self.model.stand(user=self.user)
 
     def __init__(self, table_model, views):
         self.model = table_model

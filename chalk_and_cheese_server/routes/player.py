@@ -22,22 +22,7 @@ class Player(Router):
 
     @_sub.post()
     def join(self):
-        user_dict = utils.json_body(default={})
-        user_view = self.views.players.from_uid_password(
-            uid=user_dict.get('uid', None),
-            password=user_dict.get('password', None)
-        )
-
-        if user_view is None:
-            user = Mouse.new(name=user_dict.get('name', None),
-                             password=user_dict.get('password', None))
-            self.lobby.join(user)
-            user_view = self.views.players[user]
-        else:
-            user = user_view.model
-            self.lobby.join(user)
-
-        return user_view.show
+        return self.views.players.joined(new_model=Mouse)
 
     @_sub.delete()
     def leave(self):
@@ -45,12 +30,4 @@ class Player(Router):
 
     @_sub.get('/updated')
     def updated(self):
-        #TODO - make this "Has the player model changed since last update"
-        user = self.user
-        ret = {
-            'change': user.updated(user)
-        }
-        if ret['change']:
-            ret['data'] = self.views.players[self.user].show
-
-        return ret
+        return self.views.players.updated
