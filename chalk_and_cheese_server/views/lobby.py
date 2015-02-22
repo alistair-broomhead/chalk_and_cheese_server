@@ -5,10 +5,11 @@ class LobbyView(ViewBase):
 
     @property
     def show(self):
-        return {
+        view = {
             mouse.uid: mouse in self.model.start_votes
             for mouse in self.model.connected
         }
+        return view
 
     @property
     def ready(self):

@@ -17,7 +17,10 @@ def body():
 
 
 def auth_user():
-    user_id, password = bottle.request.auth
+    auth = bottle.request.auth
+    if auth is None:
+        raise bottle.HTTPError(401)
+    user_id, password = auth
     user_id = json.loads(user_id)
     if user_id not in Mouse.connected:
         raise bottle.HTTPError(401)

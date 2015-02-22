@@ -1,10 +1,11 @@
+from abc import ABCMeta
 import random
 import string
 
 from .base import ModelBase
 
 
-class MouseMeta(type):
+class MouseMeta(ABCMeta):
     connected = {}
 
     def __getitem__(self, item):
@@ -28,7 +29,7 @@ class Mouse(ModelBase):
         return sorted(list(self._tables))
 
     @tables.setter
-    def change(self, uid, name=None, password=None, **_):
+    def tables(self, uid, name=None, password=None, **_):
         assert uid == self.uid
         changed = False
         if name is not None:
@@ -40,8 +41,6 @@ class Mouse(ModelBase):
 
         if changed:
             self.update()
-
-        return changed
 
     @classmethod
     def random_password(cls):

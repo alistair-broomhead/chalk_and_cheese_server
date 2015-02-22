@@ -1,31 +1,47 @@
 from .base import ViewBase
 
 
-class MiceView(object):
-    """
-    For pure convenience
-    """
-    def __init__(self, lobby_view):
-        self.lobby = lobby_view
-        self.models = {}
-
-    def from_uid(self, uid):
-        return self[self.lobby.show[uid]]
-
-    def __getitem__(self, item):
-        if item not in self.models:
-            self.models[item] = MouseView(self.lobby.model.mice[item])
-
-        return self.models[item]
-
-
 class MouseView(ViewBase):
-
+    @property
     def show(self):
         return {
             'uid': self.model.uid,
             'name': self.model.name,
         }
 
-    def __init__(self, mouse_model):
+    @property
+    def tables(self):
+        return {
+            table.uid: self.views.tables[table.uid][self.model]
+            for table in self.model.tables
+        }
+
+    def __init__(self, views, mouse_model):
+        self.views = views
         self.model = mouse_model
+
+
+class MiceView(object):
+    """
+    For pure convenience
+    """
+
+    _view_class = MouseView
+
+    def __init__(self, views):
+        self.views = views
+        self.mouse_views = {}
+
+    @property
+    def mice(self):
+        return self.views.lobby.model.mice
+
+    def from_uid(self, uid):
+        return self[self.mice[uid]]
+
+    def __getitem__(self, item):
+        if item not in self.mouse_views:
+            self.mouse_views[item] = self._view_class(self.views,
+                                                      self.mice[item.uid])
+
+        return self.mouse_views[item]

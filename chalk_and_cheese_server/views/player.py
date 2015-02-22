@@ -1,57 +1,12 @@
-from .base import ViewBase
+from .mouse import MiceView, MouseView
 from .. import utils
+import sys
 
 
-class PlayersView(object):
-    """
-    For pure convenience
-    """
-    def __init__(self, lobby_view):
-        self.lobby = lobby_view
-        self.models = {}
+class PlayerView(MouseView):
 
-    def joined(self, new_model):
-        user = self.user
-
-        if hasattr(user, 'model'):
-            self.lobby.model.join(user.model)
-        else:
-            user = self.new(user_dict=user, model=new_model)
-
-        return user.show
-
-    @property
-    def user(self):
-        user_dict = utils.json_body(default={})
-        user_view = self.from_uid_password(
-            uid=user_dict.get('uid', None),
-            password=user_dict.get('password', None)
-        )
-        return user_dict if user_view is None else user_view
-
-    def new(self, model, user_dict):
-            user = model.new(name=user_dict.get('name', None),
-                             password=user_dict.get('password', None))
-            self.lobby.model.join(user)
-            return self[user]
-
-    def from_uid_password(self, uid=None, password=None):
-        if uid is None or password is None:
-            return
-        mice = self.lobby.show
-        if uid in mice:
-            mouse = mice[uid]
-            if mouse.password == password:
-                return self[mouse]
-
-    def __getitem__(self, item):
-        if item not in self.models:
-            self.models[item] = PlayerView(self.lobby.model.mice[item.uid])
-
-        return self.models[item]
-
-
-class PlayerView(ViewBase):
+    def leave(self):
+        self.views.lobby.model.leave(self.user.model)
 
     @property
     def show(self):
@@ -63,5 +18,43 @@ class PlayerView(ViewBase):
             'tables': self.model.tables,
         }
 
-    def __init__(self, player_model):
-        self.model = player_model
+
+class PlayersView(MiceView):
+    """
+    For pure convenience
+    """
+    _view_class = PlayerView
+
+    def joined(self, new_model):
+        user_dict = utils.json_body(default={})
+
+        try:
+            mouse = self.mice[user_dict['uid']]
+            assert mouse.password == user_dict['password'], \
+                'Invalid credentials for {0}'.format(mouse)
+        except KeyError as ex:
+            print >> sys.stderr, 'Invalid:', ex
+            user = self.new(user_dict=user_dict, model=new_model)
+        except AssertionError as ex:
+            print >> sys.stderr, ex
+            user = self.new(user_dict=user_dict, model=new_model)
+        else:
+            user = self[mouse]
+            self.views.lobby.model.join(user.model)
+
+        return user.show
+
+    def new(self, model, user_dict):
+            user = model.new(name=user_dict.get('name', None),
+                             password=user_dict.get('password', None))
+            self.views.lobby.model.join(user)
+            return self[user]
+
+    def from_uid_password(self, uid=None, password=None):
+        if uid is None or password is None:
+            return
+        mice = self.mice
+        if uid in mice:
+            mouse = mice[uid]
+            if mouse.password == password:
+                return self[mouse]

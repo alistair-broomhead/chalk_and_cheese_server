@@ -26,7 +26,7 @@ class Player(Router):
 
     @_sub.delete()
     def leave(self):
-        self.lobby.leave(self.user)
+        return self.views.players[self.user.uid].leave()
 
     @_sub.get('/updated')
     def updated(self):

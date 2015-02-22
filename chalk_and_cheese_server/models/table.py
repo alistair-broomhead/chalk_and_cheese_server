@@ -19,6 +19,27 @@ def in_turn(action):
 class Table(ModelBase):
     next_id = 0
 
+    def __init__(self, mice):
+        super(Table, self).__init__()
+        self.uid, self.__class__.next_id = self.next_id, self.next_id + 1
+        self.mice = deque(sorted(list(mice)))
+
+        self.version = 0
+        self._seen = {}
+
+        self.updates = {mouse: False for mouse in self.mice}
+        self.hands = {mouse: ['chalk', 'cheese', 'cheese', 'cheese']
+                      for mouse in mice}
+        self.stacks = {mouse: [] for mouse in mice}
+        self.points = {mouse: 0 for mouse in mice}
+        # Choose a random starting mouse
+        self.mice.rotate(random.randint(1, len(self.mice)))
+        self.state = TableStates.placement
+        self.bids = {}
+        self.bid_max = self.bid_current = None
+        self.raided = []
+        self.update()
+
     def wait_for_update(self,
                         mouse,
                         time_out_in_seconds=10,
@@ -134,27 +155,6 @@ class Table(ModelBase):
                 self._return_stacks()
                 self.state = TableStates.placement
 
-        self.update()
-
-    def __init__(self, mice):
-        super(Table, self).__init__()
-        self.uid, self.__class__.next_id = self.next_id, self.next_id + 1
-        self.mice = deque(sorted(list(mice)))
-
-        self.version = 0
-        self._seen = {}
-
-        self.updates = {mouse: False for mouse in self.mice}
-        self.hands = {mouse: ['chalk', 'cheese', 'cheese', 'cheese']
-                      for mouse in mice}
-        self.stacks = {mouse: [] for mouse in mice}
-        self.points = {mouse: 0 for mouse in mice}
-        # Choose a random starting mouse
-        self.mice.rotate(random.randint(1, len(self.mice)))
-        self.state = TableStates.placement
-        self.bids = {}
-        self.bid_max = self.bid_current = None
-        self.raided = []
         self.update()
 
 

@@ -1,5 +1,6 @@
 from .base import ViewBase
 from ..models.table import TableStates
+from .table_mouse import TableMice
 from .. import utils
 
 
@@ -7,53 +8,40 @@ class TablesView(object):
     """
     For pure convenience
     """
-    def __init__(self, lobby_view):
-        self.lobby = lobby_view
-        self.models = {}
+
+    def __init__(self, views):
+        self.views = views
+        self.table_views = {}
+
+    @property
+    def games(self):
+        return self.views.lobby.model.games
 
     def __getitem__(self, item):
         item = int(item)
-        if item not in self.models:
-            self.models[item] = TableView(self.lobby.model.games[item])
+        if item not in self.table_views:
+            self.table_views[item] = TableView(self.games[item], self.views)
 
-        return self.models[item]
+        return self.table_views[item]
 
 
 class TableView(ViewBase):
+    def __init__(self, table_model, views):
+        self.model = table_model
+        self.views = views
+        self.mouse_views = TableMice(self)
 
-    def _table_mouse(self, user, model, mouse):
+    def __getitem__(self, mouse_model):
+        return self.mouse_views[mouse_model]
 
-        #TODO - Have actual TableMouse View
-
-        d = self.views.mice[mouse].show
-
-        if mouse is user:
-            d['hand'] = model.hands[mouse]
-            d['stack'] = model.stacks[mouse]
-        else:
-            d['hand'] = len(model.hands[mouse])
-            d['stack'] = len(model.stacks[mouse])
-
-        d['points'] = model.points[mouse]
-
-        if model.state is TableStates.bidding:
-            d['bid'] = model.bids[mouse]
-        elif model.state is TableStates.raid and user is model.active_player:
-            d['bid'] = model.bid_current
-        else:
-            d['bid'] = 0
-        return d
-
+    @property
     def show(self):
-        user = self.user
         model = self.model
+        mice = {mouse.uid: self[mouse].show for mouse in self.model.mice}
 
         ret = {
             'uid': model.uid,
-            'mice': {
-                mouse.uid: self._table_mouse(user, model, mouse)
-                for mouse in model.mice
-            },
+            'mice': mice,
             'state': model.state.name,
             'turn': model.active_player.uid
         }
@@ -78,11 +66,6 @@ class TableView(ViewBase):
         assert self.model.state is TableStates.bidding
         self.model.stand(user=self.user)
 
-    def __init__(self, table_model, views):
-        self.model = table_model
-        self.views = views
-
     @property
     def bid(self):
         return self.model.bids[self.user]
-
