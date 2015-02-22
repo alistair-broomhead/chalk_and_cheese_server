@@ -6,7 +6,7 @@ from .mouse import MiceView
 
 class Views(object):
     def __init__(self):
-        self.lobby = LobbyView()
+        self.lobby = LobbyView(self)
         self.tables = TablesView(self)
         self.players = PlayersView(self)
         self.mice = MiceView(self)

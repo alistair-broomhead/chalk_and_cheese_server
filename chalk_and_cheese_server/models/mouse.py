@@ -47,6 +47,12 @@ class Mouse(ModelBase):
         return ''.join(random.choice(string.printable)
                        for _ in xrange(random.randint(8, 16)))
 
+    def update(self):
+        super(Mouse, self).update()
+
+        for table in self._tables:
+            table[self].update()
+
     @classmethod
     def new(cls, name=None, password=None):
         # Get the next user id

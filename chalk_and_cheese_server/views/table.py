@@ -37,11 +37,10 @@ class TableView(ViewBase):
     @property
     def show(self):
         model = self.model
-        mice = {mouse.uid: self[mouse].show for mouse in self.model.mice}
 
         ret = {
             'uid': model.uid,
-            'mice': mice,
+            'mice': {mouse.uid: self[mouse].show for mouse in self.model.mice},
             'state': model.state.name,
             'turn': model.active_player.uid
         }
@@ -51,19 +50,15 @@ class TableView(ViewBase):
         return ret
 
     def place(self):
-        assert self.model.state is TableStates.placement
         self.model.place(user=self.user, card=utils.body())
 
     def draw(self, model):
-        assert self.model.state is TableStates.raid
         self.model.take(user=self.user, model=model)
 
     def place_bid(self):
-        assert self.model.state in (TableStates.placement, TableStates.bidding)
         self.model.bid(user=self.user, num=utils.body())
 
     def stand(self):
-        assert self.model.state is TableStates.bidding
         self.model.stand(user=self.user)
 
     @property

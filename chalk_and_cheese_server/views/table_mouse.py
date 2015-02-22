@@ -1,5 +1,6 @@
 from .base import ViewBase
 from .table import TableStates
+from ..models.table_mouse import TableMouse as TableMouseModel
 
 
 class TableMice(object):
@@ -16,36 +17,42 @@ class TableMice(object):
 class TableMouse(ViewBase):
 
     def __init__(self, mouse_model, table_model):
-        self.uid = mouse_model.uid
-        self.mouse_model = mouse_model
-        self.table_model = table_model
+        table_mouse_model = table_model[mouse_model]
+        assert isinstance(table_mouse_model, TableMouseModel)
+        self.model = table_mouse_model
+
+    @property
+    def uid(self):
+        return self.model.mouse.uid
+
+    @property
+    def bid(self):
+        if self.model.table.state is TableStates.placement:
+            return None
+        if self.model.table.state is TableStates.bidding:
+            return self.model.bid
+        if self.model.mouse is self.model.table.active_player:
+            return self.model.bid
+        return None
 
     @property
     def show(self):
 
-        table = self.table_model
-        mouse = self.mouse_model
+        transform = (lambda x: x) if self.model.is_user else len
 
-        hand = table.hands[mouse]
-        stack = table.stacks[mouse]
+        view = {
+            'uid': self.model.mouse.uid,
+            'name': self.model.mouse.name,
 
-        if mouse is not self.user:
-            hand = len(hand)
-            stack = len(stack)
+            'hand': transform(self.model.hand),
+            'stack': transform(self.model.stack),
 
-        if table.state is TableStates.bidding:
-            bid = table.points[mouse]
-        elif table.state is TableStates.raid and mouse is table.active_player:
-            bid = table.bid_current
-        else:
-            bid = 0
-
-        return {
-            'uid': mouse.uid,
-            'name': mouse.name,
-
-            'hand': hand,
-            'stack': stack,
-            'bid': bid,
-            'points': table.points[mouse]
+            'points': self.model.points
         }
+
+        bid = self.bid
+
+        if bid is not None:
+            view['bid'] = bid
+
+        return view

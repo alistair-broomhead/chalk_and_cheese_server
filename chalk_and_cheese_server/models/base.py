@@ -26,3 +26,8 @@ class ModelBase(object):
             gevent.sleep(0.1)
         self._seen[user.uid] = self.version
         return True
+
+    @property
+    def user(self):
+        from .. import utils
+        return utils.auth_user()
