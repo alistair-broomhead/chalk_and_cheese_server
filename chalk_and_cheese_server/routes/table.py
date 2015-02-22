@@ -1,5 +1,3 @@
-from .. import utils
-from ..models.table import TableStates
 from ..models.mouse import Mouse as MouseModel
 from .base import Router
 

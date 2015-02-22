@@ -34,6 +34,10 @@ class TableView(ViewBase):
     def __getitem__(self, mouse_model):
         return self.mouse_views[mouse_model]
 
+    def mouse_view(self, mouse_id):
+        mouse = self.model.mice[int(mouse_id)]
+        return self[mouse]
+
     @property
     def show(self):
         model = self.model
